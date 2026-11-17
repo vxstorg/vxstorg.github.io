@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Mouse Trail Effect</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #0a0a12;
+      cursor: none;
+      font-family: system-ui, -apple-system, sans-serif;
+    }
+
+    canvas {
+      display: block;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 1;
+    }
+
+    .hint {
+      position: fixed;
+      bottom: 28px;
+      left: 50%;
+      transform: translateX(-50%);
+      color: rgba(255, 255, 255, 0.35);
+      font-size: 14px;
+      letter-spacing: 0.5px;
+      z-index: 2;
+      pointer-events: none;
+      user-select: none;
+      text-align: center;
+    }
+
+    .hint span {
+      color: rgba(120, 180, 255, 0.6);
+    }
+  </style>
+</head>
+<body>
+  <canvas id="c"></canvas>
+  <div class="hint">Просто води мышкой · <span>клик</span> — всплеск</div>
+
+  <script>
+    const canvas = document.getElementById('c');
+    const ctx = canvas.getContext('2d');
+
+    let width, height;
+    let mouse = { x: -100, y: -100 };
+    let particles = [];
+    let ripples = [];
+
+    function resize() {
+      width = canvas.width = window.innerWidth;
+      height = canvas.height = window.innerHeight;
+    }
+    window.addEventListener('resize', resize);
+    resize();
+
+    // ——— Trail particles (следуют за мышкой без зажатия) ———
+    class TrailParticle {
+      constructor(x, y) {
+        this.x = x;
+        this.y = y;
+        this.size = Math.random() * 2.2 + 1.2;   // меньше
+        this.life = 1;
+        this.decay = Math.random() * 0.025 + 0.018;
+        this.vx = (Math.random() - 0.5) * 0.6;
+        this.vy = (Math.random() - 0.5) * 0.6;
+        this.hue = 200 + Math.random() * 40;     // голубоватый
+      }
+
+      update() {
+        this.x += this.vx;
+        this.y += this.vy;
+        this.life -= this.decay;
+        this.size *= 0.985;
+      }
+
+      draw() {
+        if (this.life <= 0) return;
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+        ctx.fillStyle = `hsla(${this.hue}, 90%, 70%, ${this.life * 0.85})`;
+        ctx.fill();
+      }
+    }
+
+    // ——— Click ripple (плавный и слегка размытый) ———
+    class Ripple {
+      constructor(x, y) {
+        this.x = x;
+        this.y = y;
+        this.radius = 0;
+        this.maxRadius = 70 + Math.random() * 40;
+        this.life = 1;
+        this.speed = 2.8;
+        this.lineWidth = 3;
+      }
+
+      update() {
+        this.radius += this.speed;
+        this.life = 1 - this.radius / this.maxRadius;
+        this.lineWidth *= 0.97;
+      }
+
+      draw() {
+        if (this.life <= 0) return;
+
+        // основной круг
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+        ctx.strokeStyle = `hsla(210, 100%, 75%, ${this.life * 0.55})`;
+        ctx.lineWidth = this.lineWidth;
+        ctx.stroke();
+
+        // лёгкое внутреннее свечение (размытие)
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.radius * 0.6, 0, Math.PI * 2);
+        ctx.strokeStyle = `hsla(200, 100%, 80%, ${this.life * 0.25})`;
+        ctx.lineWidth = this.lineWidth * 1.8;
+        ctx.stroke();
+      }
+    }
+
+    // Слежение за мышкой — без зажатия
+    window.addEventListener('mousemove', (e) => {
+      mouse.x = e.clientX;
+      mouse.y = e.clientY;
+
+      // создаём несколько частиц на каждом движении
+      for (let i = 0; i < 3; i++) {
+        particles.push(new TrailParticle(mouse.x, mouse.y));
+      }
+    });
+
+    // Клик — плавный ripple
+    window.addEventListener('mousedown', (e) => {
+      ripples.push(new Ripple(e.clientX, e.clientY));
+
+      // дополнительные частицы при клике
+      for (let i = 0; i < 12; i++) {
+        const p = new TrailParticle(e.clientX, e.clientY);
+        p.vx = (Math.random() - 0.5) * 4;
+        p.vy = (Math.random() - 0.5) * 4;
+        p.size = Math.random() * 3 + 1.5;
+        p.decay = 0.015;
+        particles.push(p);
+      }
+    });
+
+    // Курсор (маленькая точка)
+    function drawCursor() {
+      ctx.beginPath();
+      ctx.arc(mouse.x, mouse.y, 3.5, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(180, 220, 255, 0.9)';
+      ctx.fill();
+
+      ctx.beginPath();
+      ctx.arc(mouse.x, mouse.y, 8, 0, Math.PI * 2);
+      ctx.strokeStyle = 'rgba(140, 190, 255, 0.35)';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+    }
+
+    function animate() {
+      // лёгкое затемнение для шлейфа (не сильное размытие)
+      ctx.fillStyle = 'rgba(10, 10, 18, 0.22)';
+      ctx.fillRect(0, 0, width, height);
+
+      // обновляем и рисуем частицы
+      for (let i = particles.length - 1; i >= 0; i--) {
+        const p = particles[i];
+        p.update();
+        p.draw();
+        if (p.life <= 0 || p.size < 0.3) {
+          particles.splice(i, 1);
+        }
+      }
+
+      // обновляем и рисуем ripple
+      for (let i = ripples.length - 1; i >= 0; i--) {
+        const r = ripples[i];
+        r.update();
+        r.draw();
+        if (r.life <= 0) {
+          ripples.splice(i, 1);
+        }
+      }
+
+      drawCursor();
+      requestAnimationFrame(animate);
+    }
+
+    animate();
+  </script>
+</body>
+</html>
