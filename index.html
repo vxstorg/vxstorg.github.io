@@ -1,0 +1,868 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>VXSTORG — дешёвые звёзды Telegram и эдиты</title>
+  <style>
+    /* ========== БАЗА ========== */
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    :root {
+      --neon: #464962;
+      --neon-rgb: 70, 73, 98;
+      --bg: #000000;
+      --text: #e8e8f0;
+      --text-dim: #9a9ab0;
+      --card-bg: rgba(12, 12, 18, 0.72);
+      --card-border: rgba(70, 73, 98, 0.35);
+      --radius: 18px;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      overflow-x: hidden;
+      cursor: none; /* скрываем стандартный курсор на ПК */
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* На сенсорных устройствах возвращаем стандартный курсор */
+    @media (hover: none) and (pointer: coarse) {
+      body {
+        cursor: auto;
+      }
+    }
+
+    /* ========== ФОН (WebGL Fluid / Canvas 2D) ========== */
+    #fluid-canvas {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 0;
+      pointer-events: none;
+      filter: blur(26px) brightness(1.15) saturate(1.1);
+      opacity: 0.9;
+    }
+
+    /* ========== КУРСОР ========== */
+    #cursor {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 38px;
+      height: 38px;
+      pointer-events: none;
+      z-index: 9999;
+      transform: translate(-50%, -50%);
+      transition: opacity 0.25s ease;
+      will-change: transform;
+    }
+
+    #cursor svg {
+      width: 100%;
+      height: 100%;
+      overflow: visible;
+    }
+
+    #cursor .cursor-glow {
+      filter: blur(6px);
+      opacity: 0.75;
+      transition: opacity 0.3s ease;
+    }
+
+    #cursor .cursor-core {
+      transition: opacity 0.3s ease;
+    }
+
+    #cursor.hovering .cursor-glow {
+      opacity: 1;
+      animation: cursorPulse 1.4s ease-in-out infinite;
+    }
+
+    #cursor.hovering .cursor-core {
+      opacity: 0.85;
+    }
+
+    @keyframes cursorPulse {
+      0%, 100% { opacity: 0.8; filter: blur(6px); }
+      50% { opacity: 1; filter: blur(9px); }
+    }
+
+    @media (hover: none) and (pointer: coarse) {
+      #cursor { display: none; }
+    }
+
+    /* ========== RIPPLE ========== */
+    .ripple {
+      position: fixed;
+      border-radius: 50%;
+      border: 2px solid var(--neon);
+      box-shadow: 0 0 18px 4px rgba(var(--neon-rgb), 0.55),
+                  inset 0 0 18px 4px rgba(var(--neon-rgb), 0.25);
+      pointer-events: none;
+      z-index: 9998;
+      transform: translate(-50%, -50%) scale(0);
+      opacity: 0.95;
+      will-change: transform, opacity;
+    }
+
+    /* ========== ОСНОВНОЙ КОНТЕНТ ========== */
+    .page {
+      position: relative;
+      z-index: 1;
+      max-width: 1120px;
+      margin: 0 auto;
+      padding: 48px 24px 80px;
+    }
+
+    /* --- Шапка --- */
+    .hero {
+      text-align: center;
+      margin-bottom: 52px;
+      animation: fadeUp 0.9s ease both;
+    }
+
+    .hero-logo {
+      display: inline-block;
+      font-size: clamp(2.4rem, 6vw, 4rem);
+      font-weight: 900;
+      letter-spacing: 0.12em;
+      color: #fff;
+      text-shadow:
+        0 0 10px rgba(var(--neon-rgb), 0.7),
+        0 0 32px rgba(var(--neon-rgb), 0.4),
+        0 0 64px rgba(var(--neon-rgb), 0.2);
+      margin-bottom: 10px;
+      user-select: none;
+    }
+
+    .hero-sub {
+      font-size: clamp(0.95rem, 2.2vw, 1.25rem);
+      color: var(--text-dim);
+      letter-spacing: 0.06em;
+      font-weight: 500;
+    }
+
+    /* --- Верхние кнопки (канал / профиль / бот) --- */
+    .top-links {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 14px;
+      margin-top: 32px;
+    }
+
+    .top-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 9px;
+      padding: 13px 26px;
+      border-radius: 999px;
+      background: rgba(var(--neon-rgb), 0.12);
+      border: 1px solid rgba(var(--neon-rgb), 0.45);
+      color: var(--text);
+      text-decoration: none;
+      font-size: 0.95rem;
+      font-weight: 600;
+      letter-spacing: 0.03em;
+      transition: background 0.3s ease, border-color 0.3s ease,
+                  box-shadow 0.3s ease, transform 0.25s ease;
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+    }
+
+    .top-link:hover {
+      background: rgba(var(--neon-rgb), 0.28);
+      border-color: rgba(var(--neon-rgb), 0.9);
+      box-shadow: 0 0 22px rgba(var(--neon-rgb), 0.5),
+                  0 0 46px rgba(var(--neon-rgb), 0.22);
+      transform: translateY(-2px);
+    }
+
+    .top-link svg {
+      width: 18px;
+      height: 18px;
+      flex-shrink: 0;
+      fill: currentColor;
+      opacity: 0.85;
+    }
+
+    /* --- Секции --- */
+    .section {
+      margin-bottom: 44px;
+      animation: fadeUp 0.9s ease both;
+    }
+
+    .section:nth-child(2) { animation-delay: 0.1s; }
+    .section:nth-child(3) { animation-delay: 0.2s; }
+    .section:nth-child(4) { animation-delay: 0.3s; }
+
+    .section-title {
+      font-size: clamp(1.25rem, 3vw, 1.65rem);
+      font-weight: 800;
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      letter-spacing: 0.02em;
+    }
+
+    .section-title::before {
+      content: '';
+      display: block;
+      width: 4px;
+      height: 26px;
+      border-radius: 4px;
+      background: var(--neon);
+      box-shadow: 0 0 14px rgba(var(--neon-rgb), 0.8);
+    }
+
+    /* --- Сетка карточек --- */
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 18px;
+    }
+
+    .card {
+      position: relative;
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: var(--radius);
+      padding: 26px 24px;
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      transition: border-color 0.35s ease, box-shadow 0.35s ease,
+                  transform 0.35s ease;
+      overflow: hidden;
+      will-change: transform;
+    }
+
+    .card::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      background: radial-gradient(
+        circle at 50% 0%,
+        rgba(var(--neon-rgb), 0.12) 0%,
+        transparent 70%
+      );
+      opacity: 0;
+      transition: opacity 0.4s ease;
+      pointer-events: none;
+    }
+
+    .card:hover {
+      border-color: rgba(var(--neon-rgb), 0.8);
+      box-shadow: 0 0 28px rgba(var(--neon-rgb), 0.28),
+                  0 0 60px rgba(var(--neon-rgb), 0.12);
+      transform: translateY(-4px);
+    }
+
+    .card:hover::after {
+      opacity: 1;
+    }
+
+    .card-icon {
+      width: 44px;
+      height: 44px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(var(--neon-rgb), 0.15);
+      border: 1px solid rgba(var(--neon-rgb), 0.35);
+      margin-bottom: 16px;
+      font-size: 1.4rem;
+    }
+
+    .card-title {
+      font-size: 1.1rem;
+      font-weight: 700;
+      margin-bottom: 8px;
+      letter-spacing: 0.02em;
+    }
+
+    .card-desc {
+      font-size: 0.88rem;
+      line-height: 1.6;
+      color: var(--text-dim);
+      margin-bottom: 14px;
+    }
+
+    .card-price {
+      font-size: 1rem;
+      font-weight: 700;
+      color: #fff;
+      text-shadow: 0 0 10px rgba(var(--neon-rgb), 0.6);
+    }
+
+    .card-price span {
+      font-size: 0.78rem;
+      font-weight: 500;
+      color: var(--text-dim);
+      margin-left: 4px;
+    }
+
+    /* --- Список оплаты --- */
+    .pay-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      list-style: none;
+    }
+
+    .pay-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 18px;
+      border-radius: 999px;
+      background: rgba(var(--neon-rgb), 0.1);
+      border: 1px solid rgba(var(--neon-rgb), 0.3);
+      font-size: 0.88rem;
+      font-weight: 600;
+      color: var(--text);
+      transition: border-color 0.3s ease, box-shadow 0.3s ease;
+    }
+
+    .pay-item:hover {
+      border-color: rgba(var(--neon-rgb), 0.8);
+      box-shadow: 0 0 16px rgba(var(--neon-rgb), 0.35);
+    }
+
+    .pay-item .dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--neon);
+      box-shadow: 0 0 8px rgba(var(--neon-rgb), 0.9);
+    }
+
+    /* --- CTA --- */
+    .cta-block {
+      text-align: center;
+      margin-top: 36px;
+      padding: 36px 24px;
+      border-radius: var(--radius);
+      background: rgba(var(--neon-rgb), 0.08);
+      border: 1px solid rgba(var(--neon-rgb), 0.28);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+    }
+
+    .cta-block p {
+      font-size: 1rem;
+      color: var(--text-dim);
+      margin-bottom: 18px;
+    }
+
+    .btn-primary {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      padding: 15px 38px;
+      border: none;
+      border-radius: 999px;
+      background: var(--neon);
+      color: #fff;
+      font-size: 1rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-decoration: none;
+      cursor: none;
+      box-shadow: 0 0 20px rgba(var(--neon-rgb), 0.55),
+                  0 0 44px rgba(var(--neon-rgb), 0.25);
+      transition: box-shadow 0.35s ease, transform 0.3s ease;
+    }
+
+    .btn-primary:hover {
+      box-shadow: 0 0 32px rgba(var(--neon-rgb), 0.85),
+                  0 0 80px rgba(var(--neon-rgb), 0.4);
+      transform: translateY(-2px) scale(1.02);
+    }
+
+    /* --- Футер --- */
+    .footer {
+      text-align: center;
+      margin-top: 48px;
+      padding-top: 24px;
+      border-top: 1px solid rgba(var(--neon-rgb), 0.18);
+      font-size: 0.82rem;
+      color: #55556a;
+      letter-spacing: 0.04em;
+    }
+
+    /* ========== АНИМАЦИИ ========== */
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(24px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ========== АДАПТИВ ========== */
+    @media (max-width: 600px) {
+      .page { padding: 32px 16px 64px; }
+      .hero { margin-bottom: 36px; }
+      .top-links { gap: 10px; }
+      .top-link { padding: 11px 18px; font-size: 0.85rem; }
+      .cards { grid-template-columns: 1fr; }
+      .section { margin-bottom: 32px; }
+      .cta-block { padding: 26px 18px; }
+    }
+
+    /* Уважение к prefers-reduced-motion */
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        transition-duration: 0.01ms !important;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Фон -->
+  <canvas id="fluid-canvas"></canvas>
+
+  <!-- Кастомный курсор -->
+  <div id="cursor" aria-hidden="true">
+    <svg viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg">
+      <!-- Внешнее свечение -->
+      <path class="cursor-glow"
+            d="M20 4 L35 32 L5 32 Z"
+            fill="none"
+            stroke="#464962"
+            stroke-width="4"
+            stroke-linejoin="round"
+            stroke-linecap="round" />
+      <!-- Чёткая неоновая рамка -->
+      <path class="cursor-core"
+            d="M20 4 L35 32 L5 32 Z"
+            fill="none"
+            stroke="#7a7fb0"
+            stroke-width="2"
+            stroke-linejoin="round"
+            stroke-linecap="round" />
+      <!-- Внутренняя точка для ориентира -->
+      <circle cx="20" cy="26" r="1.6" fill="#464962" opacity="0.9" />
+    </svg>
+  </div>
+
+  <!-- Контент -->
+  <main class="page">
+
+    <!-- Шапка -->
+    <header class="hero">
+      <div class="hero-logo">VXSTORG</div>
+      <p class="hero-sub">дешёвые звёзды Telegram и эдиты</p>
+
+      <!-- Верхние ссылки: канал / профиль / бот (сохраняем позицию) -->
+      <nav class="top-links" id="top-links">
+        <!-- Ссылки подставляются из JS (CONFIG) -->
+      </nav>
+    </header>
+
+    <!-- Секция: Заказать эдит -->
+    <section class="section" id="order-section">
+      <h2 class="section-title">Заказать эдит</h2>
+      <div class="cards" id="order-cards">
+        <!-- Карточки товаров/услуг подставляются из JS -->
+      </div>
+    </section>
+
+    <!-- Секция: Способы оплаты (без СБП) -->
+    <section class="section" id="payment-section">
+      <h2 class="section-title">Способы оплаты</h2>
+      <ul class="pay-list" id="pay-list">
+        <!-- Способы оплаты подставляются из JS -->
+      </ul>
+    </section>
+
+    <!-- CTA -->
+    <div class="cta-block">
+      <p>Готовы заказать? Напишите нам в Telegram — ответим быстро.</p>
+      <a class="btn-primary" id="cta-link" href="#" target="_blank" rel="noopener">
+        Написать в Telegram
+      </a>
+    </div>
+
+    <!-- Футер -->
+    <footer class="footer">
+      © <span id="year"></span> VXSTORG. Все права защищены.
+    </footer>
+
+  </main>
+
+  <script>
+    /* ============================================================
+       КОНФИГ — ЗАМЕНИТЕ НА СВОИ АКТУАЛЬНЫЕ ДАННЫЕ
+       ============================================================ */
+    const CONFIG = {
+      // Ссылки верхнего блока (порядок и подписи сохраняем)
+      topLinks: [
+        {
+          label: 'Мой канал',
+          href: 'https://t.me/your_channel', // <-- замените
+          icon: 'channel'
+        },
+        {
+          label: 'Мой профиль',
+          href: 'https://t.me/your_profile', // <-- замените
+          icon: 'profile'
+        },
+        {
+          label: 'Бот',
+          href: 'https://t.me/your_bot', // <-- замените
+          icon: 'bot'
+        }
+      ],
+
+      // Товары/услуги внутри «Заказать эдит»
+      orderCards: [
+        {
+          icon: '⭐',
+          title: 'Звёзды Telegram',
+          desc: 'Быстрая и безопасная доставка звёзд на ваш аккаунт. Любой объём.',
+          price: 'от 1.2 ₽ / звезда',
+          note: 'оптом дешевле'
+        },
+        {
+          icon: '🎬',
+          title: 'Эдиты',
+          desc: 'Качественный монтаж видео под Telegram, Reels, Shorts. Индивидуальный подход.',
+          price: 'от 500 ₽',
+          note: 'срок от 1 дня'
+        },
+        {
+          icon: '🚀',
+          title: 'Комбо-предложение',
+          desc: 'Звёзды + эдит со скидкой. Идеально для продвижения канала.',
+          price: 'выгодно',
+          note: 'уточняйте в чате'
+        }
+      ],
+
+      // Способы оплаты — СБП полностью удалён
+      payments: [
+        'Банковская карта',
+        'USDT (TRC20)',
+        'Telegram Stars',
+        'Криптовалюта'
+      ],
+
+      // Ссылка для CTA
+      ctaHref: 'https://t.me/your_profile' // <-- замените
+    };
+
+    /* ============================================================
+       РЕНДЕР КОНТЕНТА
+       ============================================================ */
+    (function render() {
+      // --- Верхние ссылки ---
+      const topContainer = document.getElementById('top-links');
+      const icons = {
+        channel: '<svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14.5v-9l6 4.5-6 4.5z"/></svg>',
+        profile: '<svg viewBox="0 0 24 24"><path d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 7.2 9.3 12 12 12zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v1.2h19.2v-1.2c0-3.2-6.4-4.8-9.6-4.8z"/></svg>',
+        bot: '<svg viewBox="0 0 24 24"><path d="M12 2a2 2 0 0 1 2 2v1h3a3 3 0 0 1 3 3v8a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3V8a3 3 0 0 1 3-3h3V4a2 2 0 0 1 2-2zM9 11a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zm6 0a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3z"/></svg>'
+      };
+
+      CONFIG.topLinks.forEach(link => {
+        const a = document.createElement('a');
+        a.className = 'top-link';
+        a.href = link.href;
+        a.target = '_blank';
+        a.rel = 'noopener';
+        a.innerHTML = `${icons[link.icon] || ''}<span>${link.label}</span>`;
+        topContainer.appendChild(a);
+      });
+
+      // --- Карточки ---
+      const cardsContainer = document.getElementById('order-cards');
+      CONFIG.orderCards.forEach(card => {
+        const div = document.createElement('div');
+        div.className = 'card';
+        div.innerHTML = `
+          <div class="card-icon">${card.icon}</div>
+          <h3 class="card-title">${card.title}</h3>
+          <p class="card-desc">${card.desc}</p>
+          <div class="card-price">${card.price} <span>${card.note}</span></div>
+        `;
+        cardsContainer.appendChild(div);
+      });
+
+      // --- Оплата ---
+      const payContainer = document.getElementById('pay-list');
+      CONFIG.payments.forEach(pay => {
+        const li = document.createElement('li');
+        li.className = 'pay-item';
+        li.innerHTML = `<span class="dot"></span>${pay}`;
+        payContainer.appendChild(li);
+      });
+
+      // --- CTA ---
+      document.getElementById('cta-link').href = CONFIG.ctaHref;
+
+      // --- Год ---
+      document.getElementById('year').textContent = new Date().getFullYear();
+    })();
+
+    /* ============================================================
+       КАСТОМНЫЙ КУРСОР (Neon Triangle)
+       ============================================================ */
+    (function initCursor() {
+      // Отключаем на сенсорных устройствах
+      const isTouch = window.matchMedia('(hover: none) and (pointer: coarse)').matches;
+      if (isTouch) return;
+
+      const cursor = document.getElementById('cursor');
+      if (!cursor) return;
+
+      let mouseX = window.innerWidth / 2;
+      let mouseY = window.innerHeight / 2;
+      let curX = mouseX;
+      let curY = mouseY;
+      let rafId = null;
+
+      // Плавное следование
+      function loop() {
+        curX += (mouseX - curX) * 0.22;
+        curY += (mouseY - curY) * 0.22;
+        cursor.style.transform = `translate(${curX}px, ${curY}px) translate(-50%, -50%)`;
+        rafId = requestAnimationFrame(loop);
+      }
+
+      document.addEventListener('mousemove', e => {
+        mouseX = e.clientX;
+        mouseY = e.clientY;
+      }, { passive: true });
+
+      // Показываем / скрываем
+      document.addEventListener('mouseenter', () => {
+        cursor.style.opacity = '1';
+        if (!rafId) loop();
+      });
+
+      document.addEventListener('mouseleave', () => {
+        cursor.style.opacity = '0';
+        if (rafId) {
+          cancelAnimationFrame(rafId);
+          rafId = null;
+        }
+      });
+
+      // Эффект наведения на интерактивные элементы
+      const interactiveSelector = 'a, button, .card, .top-link, .btn-primary, .pay-item';
+      document.addEventListener('mouseover', e => {
+        if (e.target.closest(interactiveSelector)) {
+          cursor.classList.add('hovering');
+        }
+      });
+      document.addEventListener('mouseout', e => {
+        if (e.target.closest(interactiveSelector)) {
+          cursor.classList.remove('hovering');
+        }
+      });
+
+      // Запуск
+      loop();
+    })();
+
+    /* ============================================================
+       CLICK RIPPLE (волна от клика)
+       ============================================================ */
+    (function initRipple() {
+      const DURATION = 1100; // мс
+      const MAX_RADIUS = Math.max(window.innerWidth, window.innerHeight) * 0.7;
+
+      document.addEventListener('pointerdown', e => {
+        // Игнорируем правую кнопку и сенсорные мультитач-жесты
+        if (e.button !== 0) return;
+
+        const ripple = document.createElement('div');
+        ripple.className = 'ripple';
+        ripple.style.left = e.clientX + 'px';
+        ripple.style.top = e.clientY + 'px';
+        ripple.style.width = '10px';
+        ripple.style.height = '10px';
+        document.body.appendChild(ripple);
+
+        const start = performance.now();
+
+        function animate(now) {
+          const elapsed = now - start;
+          const t = Math.min(elapsed / DURATION, 1);
+          // Ease-in: cubic-bezier(0.7, 0, 0.84, 0) — медленный старт, ускорение к концу
+          const eased = cubicBezier(t, 0.7, 0, 0.84, 0);
+
+          const scale = 1 + eased * MAX_RADIUS / 5;
+          const opacity = 1 - eased;
+
+          ripple.style.transform = `translate(-50%, -50%) scale(${scale})`;
+          ripple.style.opacity = opacity;
+
+          if (t < 1) {
+            requestAnimationFrame(animate);
+          } else {
+            ripple.remove();
+          }
+        }
+
+        requestAnimationFrame(animate);
+      }, { passive: true });
+
+      // Аппроксимация cubic-bezier для плавности
+      function cubicBezier(t, p1x, p1y, p2x, p2y) {
+        // Простая численная аппроксимация: используем easeInCubic для ускорения
+        // Для точного соответствия можно реализовать полноценный solver,
+        // но ease-in достаточно для требуемого эффекта.
+        return t * t * t; // easeInCubic — плавное начало, быстрое ускорение
+      }
+    })();
+
+    /* ============================================================
+       ФОН: МЯГКАЯ ЖИДКОСТЬ (Canvas 2D, цвет #464962, без завихрений)
+       ============================================================ */
+    (function initFluidBackground() {
+      const canvas = document.getElementById('fluid-canvas');
+      if (!canvas) return;
+
+      const ctx = canvas.getContext('2d', { alpha: false });
+      let W, H;
+      let dpr = Math.min(window.devicePixelRatio || 1, 2);
+
+      function resize() {
+        W = window.innerWidth;
+        H = window.innerHeight;
+        canvas.width = W * dpr;
+        canvas.height = H * dpr;
+        canvas.style.width = W + 'px';
+        canvas.style.height = H + 'px';
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        ctx.fillStyle = '#000000';
+        ctx.fillRect(0, 0, W, H);
+      }
+
+      window.addEventListener('resize', resize);
+      resize();
+
+      // Параметры
+      const TRAIL_COLOR = { r: 70, g: 73, b: 98 };
+      const FADE_RATE = 0.018; // скорость затухания
+      const BRUSH_RADIUS = 90;
+      const MAX_PARTICLES = 60;
+
+      // Частицы следа
+      const particles = [];
+
+      // Отслеживание мыши
+      let lastX = null;
+      let lastY = null;
+      let lastTime = 0;
+
+      document.addEventListener('mousemove', e => {
+        const now = performance.now();
+        const dt = now - lastTime;
+        if (dt < 8) return; // ограничение частоты
+        lastTime = now;
+
+        const x = e.clientX;
+        const y = e.clientY;
+
+        if (lastX !== null && lastY !== null) {
+          const dx = x - lastX;
+          const dy = y - lastY;
+          const dist = Math.hypot(dx, dy);
+
+          // Количество частиц зависит от скорости
+          const count = Math.min(Math.floor(dist / 4) + 1, 6);
+
+          for (let i = 0; i < count; i++) {
+            const t = i / count;
+            const px = lastX + dx * t;
+            const py = lastY + dy * t;
+
+            if (particles.length < MAX_PARTICLES) {
+              particles.push({
+                x: px,
+                y: py,
+                radius: BRUSH_RADIUS * (0.8 + Math.random() * 0.4),
+                life: 1,
+                vx: (Math.random() - 0.5) * 0.6,
+                vy: (Math.random() - 0.5) * 0.6
+              });
+            }
+          }
+        }
+
+        lastX = x;
+        lastY = y;
+      }, { passive: true });
+
+      // Сброс при уходе мыши
+      document.addEventListener('mouseleave', () => {
+        lastX = null;
+        lastY = null;
+      });
+
+      // Анимация
+      function draw() {
+        // Мягкое затемнение фона (затухание следа)
+        ctx.fillStyle = 'rgba(0, 0, 0, ' + FADE_RATE + ')';
+        ctx.fillRect(0, 0, W, H);
+
+        // Рисуем частицы
+        for (let i = particles.length - 1; i >= 0; i--) {
+          const p = particles[i];
+
+          // Лёгкое диффузное движение (без завихрений)
+          p.x += p.vx;
+          p.y += p.vy;
+          p.vx *= 0.995;
+          p.vy *= 0.995;
+
+          // Затухание
+          p.life -= 0.008;
+          if (p.life <= 0) {
+            particles.splice(i, 1);
+            continue;
+          }
+
+          // Радиальный градиент для мягкого свечения
+          const gradient = ctx.createRadialGradient(
+            p.x, p.y, 0,
+            p.x, p.y, p.radius * p.life
+          );
+          const alpha = 0.22 * p.life;
+          gradient.addColorStop(0, `rgba(${TRAIL_COLOR.r}, ${TRAIL_COLOR.g}, ${TRAIL_COLOR.b}, ${alpha})`);
+          gradient.addColorStop(0.5, `rgba(${TRAIL_COLOR.r}, ${TRAIL_COLOR.g}, ${TRAIL_COLOR.b}, ${alpha * 0.4})`);
+          gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
+
+          ctx.fillStyle = gradient;
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, p.radius * p.life, 0, Math.PI * 2);
+          ctx.fill();
+        }
+
+        requestAnimationFrame(draw);
+      }
+
+      draw();
+    })();
+
+  </script>
+</body>
+</html>
